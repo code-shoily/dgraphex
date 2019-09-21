@@ -3,8 +3,9 @@ defmodule Dgraphex do
   use Supervisor
 
   alias Dgraphex.ConfigStore
+  alias Dgraphex.Utils
 
-  @timeout 5_000
+  @type payload :: atom() | {atom(), any()}
 
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
@@ -12,7 +13,7 @@ defmodule Dgraphex do
 
   def init(opts) do
     children = [
-      {ConfigStore, default_config(opts)},
+      {ConfigStore, Utils.default_config(opts)},
       :poolboy.child_spec(:worker, poolboy_config())
     ]
 
@@ -23,105 +24,59 @@ defmodule Dgraphex do
     :ok
   end
 
+  # ---------------------------------------------------------
+  # PUBLIC API
+  # ---------------------------------------------------------
+  @spec config :: Keyword.t()
   def config, do: ConfigStore.get_config()
 
   @doc false
+  @spec config(atom()) :: any()
   def config(key), do: Keyword.get(config(), key)
 
   @doc false
+  @spec config(atom(), any()) :: any()
   def config(key, default) do
     Keyword.get(config(), key, default)
   rescue
     _ -> default
   end
 
-  # ---------------------------------------------------------
-  # PUBLIC API
-  # ---------------------------------------------------------
-  def get_channel do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, :channel) end,
-      @timeout
-    )
-  end
+  def get_channel, do: transact(:channel)
 
-  def reconnect do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, :reconnect) end,
-      @timeout
-    )
-  end
+  def reconnect, do: transact(:reconnect)
 
-  def alter(statement) do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, {:alter, statement}) end,
-      @timeout
-    )
-  end
-  def query(statement) do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, {:query, statement}) end,
-      @timeout
-    )
-  end
+  def alter(statement), do: transact({:alter, statement})
 
-  def mutate_nquads(statement) when is_list(statement) do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, {:mutate_nquads_many, statement}) end,
-      @timeout
-    )
-  end
+  def query(statement), do: transact({:query, statement})
 
-  def mutate_nquads(statement) when is_binary(statement) do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, {:mutate_nquads, statement}) end,
-      @timeout
-    )
-  end
+  def mutate_nquads(statement) when is_list(statement), do:
+    transact({:mutate_nquads_many, statement})
 
-  def mutate_json(statement) when is_list(statement) do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, {:mutate_json_many, statement}) end,
-      @timeout
-    )
-  end
+  def mutate_nquads(statement) when is_binary(statement), do:
+    transact({:mutate_nquads, statement})
 
-  def mutate_json(statement) do
-    :poolboy.transaction(
-      :worker,
-      fn pid -> GenServer.call(pid, {:mutate_json, statement}) end,
-      @timeout
-    )
-  end
+  def mutate_json(statement) when is_list(statement), do:
+    transact({:mutate_json_many, statement})
+
+  def mutate_json(statement), do: transact({:mutate_json, statement})
+
   # ---------------------------------------------------------
   # PRIVATE API
   # ---------------------------------------------------------
-  defp poolboy_config do
-    Application.get_env(:dgraphex, Dgraphex)
-    |> Keyword.put_new(:name, {:local, :worker})
-    |> Keyword.put_new(:worker_module, Dgraphex.ApiWrapper)
+  @spec transact(payload()) :: any()
+  defp transact(payload) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, payload) end,
+      config(:timeout)
+    )
   end
 
-  @spec default_config(Keyword.t()) :: Keyword.t()
-  def default_config(config) do
-    config
-    |> Keyword.put_new(:hostname, System.get_env("DGRAPH_HOST") || 'localhost')
-    |> Keyword.put_new(:port, System.get_env("DGRAPH_PORT") || 9080)
-    |> Keyword.put_new(:timeout, 15_000)
-    |> Keyword.put_new(:ssl, false)
-    |> Keyword.put_new(:tls_client_auth, false)
-    |> Keyword.put_new(:certfile, nil)
-    |> Keyword.put_new(:keyfile, nil)
-    |> Keyword.put_new(:cacertfile, nil)
-    |> Keyword.put_new(:enforce_struct_schema, false)
-    |> Keyword.put_new(:keepalive, :infinity)
-    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+  @spec poolboy_config :: Keyword.t()
+  defp poolboy_config do
+    Application.get_env(:dgraphex, Configuration)
+    |> Keyword.put_new(:name, {:local, :worker})
+    |> Keyword.put_new(:worker_module, Dgraphex.ApiWrapper)
   end
 end

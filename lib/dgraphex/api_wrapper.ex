@@ -20,7 +20,7 @@ defmodule Dgraphex.ApiWrapper do
   @impl true
   def handle_call({:alter, statement}, _from, %{channel: channel} = state) do
     case ApiStub.alter(channel, Operation.new(schema: statement)) do
-      {:ok, _} -> {:reply, :ok, state}
+      {:ok, result} -> {:reply, result, state}
       {:error, error} -> {:reply, error, state}
     end
   end
@@ -28,20 +28,20 @@ defmodule Dgraphex.ApiWrapper do
   @impl true
   def handle_call({:query, statement}, _from, %{channel: channel} = state) do
     case ApiStub.query(channel, Request.new(query: statement)) do
-      {:ok, _} -> {:reply, :ok, state}
+      {:ok, result} -> {:reply, result, state}
       {:error, error} -> {:reply, error, state}
     end
   end
 
   @impl true
   def handle_call({:mutate_nquads, statement}, _from, %{channel: channel} = state) do
-    mutations = [Mutation.new(set_quads: statement)]
+    mutations = [Mutation.new(set_nquads: statement)]
 
     case ApiStub.query(
            channel,
            Request.new(mutations: mutations, commit_now: true)
          ) do
-      {:ok, _} -> {:reply, :ok, state}
+      {:ok, result} -> {:reply, result, state}
       {:error, error} -> {:reply, error, state}
     end
   end
@@ -58,7 +58,7 @@ defmodule Dgraphex.ApiWrapper do
            channel,
            Request.new(mutations: mutations, commit_now: true)
          ) do
-      {:ok, _} -> {:reply, :ok, state}
+      {:ok, result} -> {:reply, result, state}
       {:error, error} -> {:reply, error, state}
     end
   end
@@ -71,7 +71,7 @@ defmodule Dgraphex.ApiWrapper do
            channel,
            Request.new(mutations: mutations, commit_now: true)
          ) do
-      {:ok, _} -> {:reply, :ok, state}
+      {:ok, result} -> {:reply, result, state}
       {:error, error} -> {:reply, error, state}
     end
   end
