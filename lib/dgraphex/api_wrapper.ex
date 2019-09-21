@@ -1,7 +1,9 @@
-defmodule Dgraphex.APIWrapper do
+defmodule Dgraphex.ApiWrapper do
   use GenServer
 
   alias Dgraphex.Error
+  alias Dgraphex.Api.{Operation, Request}
+  alias Dgraphex.Api.Dgraph.Stub, as: ApiStub
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, [])
@@ -16,8 +18,46 @@ defmodule Dgraphex.APIWrapper do
   end
 
   @impl true
-  def handle_call(:connect, _from, state) do
-    {:reply, connect(), state}
+  def handle_call({:alter, statement}, _from, %{channel: channel} = state) do
+    case ApiStub.alter(channel, Operation.new(schema: statement)) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:query, statement}, _from, %{channel: channel} = state) do
+    case ApiStub.query(channel, Request.new(query: statement)) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:mutate, statement}, _from, %{channel: channel} = state) do
+    case ApiStub.query(channel, Request.new(mutations: [statement], commit_now: true)) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:mutate_many, statements}, _from, %{channel: channel} = state) do
+    case ApiStub.query(channel, Request.new(mutations: statements, commit_now: true)) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_call(:channel, _from, %{channel: channel} = state) do
+    {:reply, channel, state}
+  end
+
+  @impl true
+  def handle_call(:reconnect, _from, _state) do
+    {:ok, channel} = connect()
+    {:reply, channel, %{channel: channel}}
   end
 
   @impl true

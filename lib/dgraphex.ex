@@ -4,6 +4,8 @@ defmodule Dgraphex do
 
   alias Dgraphex.ConfigStore
 
+  @timeout 5_000
+
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -36,18 +38,59 @@ defmodule Dgraphex do
   # ---------------------------------------------------------
   # PUBLIC API
   # ---------------------------------------------------------
-  def alter(command), do: :implement_me
-  def query(command, vars), do: :implement_me
-  def mutate(command, vars), do: :implement_me
-  def delete(command, vars), do: :implement_me
-  def login(command, vars), do: :implement_me
+  def get_channel do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, :channel) end,
+      @timeout
+    )
+  end
+
+  def reconnect do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, :reconnect) end,
+      @timeout
+    )
+  end
+
+  def alter(statement) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, {:alter, statement}) end,
+      @timeout
+    )
+  end
+  def query(statement) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, {:query, statement}) end,
+      @timeout
+    )
+  end
+
+  def mutate(statement) when is_list(statement) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, {:mutate_many, statement}) end,
+      @timeout
+    )
+  end
+
+  def mutate(statement) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, {:mutate, statement}) end,
+      @timeout
+    )
+  end
   # ---------------------------------------------------------
   # PRIVATE API
   # ---------------------------------------------------------
   defp poolboy_config do
     Application.get_env(:dgraphex, Dgraphex)
     |> Keyword.put_new(:name, {:local, :worker})
-    |> Keyword.put_new(:worker_module, Dgraphex.APIWrapper)
+    |> Keyword.put_new(:worker_module, Dgraphex.ApiWrapper)
   end
 
   @spec default_config(Keyword.t()) :: Keyword.t()
