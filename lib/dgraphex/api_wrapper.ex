@@ -2,7 +2,7 @@ defmodule Dgraphex.ApiWrapper do
   use GenServer
 
   alias Dgraphex.Error
-  alias Dgraphex.Api.{Operation, Request}
+  alias Dgraphex.Api.{Operation, Request, Mutation}
   alias Dgraphex.Api.Dgraph.Stub, as: ApiStub
 
   def start_link(_) do
@@ -34,16 +34,60 @@ defmodule Dgraphex.ApiWrapper do
   end
 
   @impl true
-  def handle_call({:mutate, statement}, _from, %{channel: channel} = state) do
-    case ApiStub.query(channel, Request.new(mutations: [statement], commit_now: true)) do
+  def handle_call({:mutate_nquads, statement}, _from, %{channel: channel} = state) do
+    mutations = [Mutation.new(set_quads: statement)]
+
+    case ApiStub.query(
+           channel,
+           Request.new(mutations: mutations, commit_now: true)
+         ) do
       {:ok, _} -> {:reply, :ok, state}
       {:error, error} -> {:reply, error, state}
     end
   end
 
   @impl true
-  def handle_call({:mutate_many, statements}, _from, %{channel: channel} = state) do
-    case ApiStub.query(channel, Request.new(mutations: statements, commit_now: true)) do
+  def handle_call({:mutate_nquads_many, statements}, _from, %{channel: channel} = state) do
+    mutations =
+      statements
+      |> Enum.map(fn statement ->
+        Mutation.new(set_nquads: statement)
+      end)
+
+    case ApiStub.query(
+           channel,
+           Request.new(mutations: mutations, commit_now: true)
+         ) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:mutate_json, statement}, _from, %{channel: channel} = state) do
+    mutations = [Mutation.new(set_json: Jason.encode!(statement))]
+
+    case ApiStub.query(
+           channel,
+           Request.new(mutations: mutations, commit_now: true)
+         ) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, error} -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:mutate_json_many, statements}, _from, %{channel: channel} = state) do
+    mutations =
+      statements
+      |> Enum.map(fn statement ->
+        Mutation.new(set_json: Jason.encode!(statement))
+      end)
+
+    case ApiStub.query(
+           channel,
+           Request.new(mutations: mutations, commit_now: true)
+         ) do
       {:ok, _} -> {:reply, :ok, state}
       {:error, error} -> {:reply, error, state}
     end

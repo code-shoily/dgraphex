@@ -69,18 +69,34 @@ defmodule Dgraphex do
     )
   end
 
-  def mutate(statement) when is_list(statement) do
+  def mutate_nquads(statement) when is_list(statement) do
     :poolboy.transaction(
       :worker,
-      fn pid -> GenServer.call(pid, {:mutate_many, statement}) end,
+      fn pid -> GenServer.call(pid, {:mutate_nquads_many, statement}) end,
       @timeout
     )
   end
 
-  def mutate(statement) do
+  def mutate_nquads(statement) when is_binary(statement) do
     :poolboy.transaction(
       :worker,
-      fn pid -> GenServer.call(pid, {:mutate, statement}) end,
+      fn pid -> GenServer.call(pid, {:mutate_nquads, statement}) end,
+      @timeout
+    )
+  end
+
+  def mutate_json(statement) when is_list(statement) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, {:mutate_json_many, statement}) end,
+      @timeout
+    )
+  end
+
+  def mutate_json(statement) do
+    :poolboy.transaction(
+      :worker,
+      fn pid -> GenServer.call(pid, {:mutate_json, statement}) end,
       @timeout
     )
   end
